@@ -37,11 +37,11 @@ pub fn init() {
     static LOGGER: SimpleLogger = SimpleLogger;
     log::set_logger(&LOGGER).unwrap();
     log::set_max_level(match option_env!("LOG") {
-        Some("ERROR") => LevelFilter::Error,
-        Some("WARN") => LevelFilter::Warn,
-        Some("INFO") => LevelFilter::Info,
-        Some("DEBUG") => LevelFilter::Debug,
-        Some("TRACE") => LevelFilter::Trace,
+        Some("ERROR") | Some("error") => LevelFilter::Error,
+        Some("WARN") | Some("warn") => LevelFilter::Warn,
+        Some("INFO") | Some("info") => LevelFilter::Info,
+        Some("DEBUG") | Some("debug") => LevelFilter::Debug,
+        Some("TRACE") | Some("trace") => LevelFilter::Trace,
         _ => LevelFilter::Off,
     });
 }
