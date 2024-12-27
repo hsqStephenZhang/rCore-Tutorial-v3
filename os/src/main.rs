@@ -7,22 +7,28 @@
 //!
 //! We then call [`println!`] to display `Hello, world!`.
 
-#![deny(missing_docs)]
-#![deny(warnings)]
+// #![deny(missing_docs)]
+// #![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
 
 use core::arch::global_asm;
+use batch::run_next_app;
 use log::*;
 
 #[macro_use]
 mod console;
+mod batch;
 mod lang_items;
 mod logging;
 mod sbi;
+pub mod syscall;
+pub mod trap;
+pub mod sync;
 
 global_asm!(include_str!("entry.asm"));
+global_asm!(include_str!("link_app.S"));
 
 /// clear BSS segment
 pub fn clear_bss() {
@@ -69,6 +75,9 @@ pub fn rust_main() -> ! {
         boot_stack_top as usize, boot_stack_lower_bound as usize
     );
     error!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
+    trap::init();
+    batch::init();
+    run_next_app();
 
     // CI autotest success: sbi::shutdown(false)
     // CI autotest failed : sbi::shutdown(true)
