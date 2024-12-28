@@ -1,4 +1,7 @@
-use crate::batch::{run_next_app, APP_MANAGER, APP_NAME_MAX_LEN};
+use crate::{
+    batch::{run_next_app, APP_MANAGER, APP_NAME_MAX_LEN},
+    syscall::user_buf_range_check,
+};
 
 pub fn sys_exit(code: i32) -> isize {
     println!("exit: {}", code);
@@ -14,7 +17,13 @@ pub struct TaskInfo {
 
 #[no_mangle]
 pub fn sys_get_task_info(task_info: *mut TaskInfo) -> isize {
-    // TDDO: check validity of the argument
+    // TDDO: check write permission of the user buffer
+    let start_addr = task_info as *mut u8;
+    let len = core::mem::size_of::<TaskInfo>();
+    if user_buf_range_check(start_addr, len) == false {
+        return -1;
+    }
+
     let app_manager = APP_MANAGER.borrow_mut();
     let idx = app_manager.get_current_app();
     let name = app_manager.get_run_app_name();

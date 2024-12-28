@@ -9,6 +9,7 @@ use core::arch::asm;
 #[no_mangle]
 fn main() -> i32 {
     user_lib::debug_task_info();
+    user_lib::bad_task_info_user_arg();
     println!("Try to execute privileged instruction in U Mode");
     println!("Kernel should kill this application!");
     unsafe {

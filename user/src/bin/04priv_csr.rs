@@ -8,6 +8,8 @@ use riscv::register::sstatus::{self, SPP};
 
 #[no_mangle]
 fn main() -> i32 {
+    user_lib::debug_task_info();
+    user_lib::bad_task_info_user_arg();
     println!("Try to access privileged CSR in U Mode");
     println!("Kernel should kill this application!");
     unsafe {
