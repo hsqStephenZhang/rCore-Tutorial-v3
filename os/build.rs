@@ -54,5 +54,18 @@ app_{0}_end:
         )?;
     }
 
+    writeln!(
+        f,
+        r#"
+    // Add string literals for each app's name
+    .section .rodata
+    .global _app_names
+_app_names:"#
+    )?;
+
+    for i in 0..num_app {
+        writeln!(f, ".string \"{}\"", &apps[i])?;
+    }
+
     Ok(())
 }

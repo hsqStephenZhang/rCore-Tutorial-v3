@@ -8,7 +8,7 @@ pub mod console;
 pub mod lang_term;
 mod syscall;
 
-use syscall::*;
+pub use syscall::*;
 
 pub const STDOUT: usize = 1;
 
@@ -18,6 +18,24 @@ pub fn write(fd: usize, buffer: &[u8]) -> isize {
 
 pub fn exit(code: i32) -> isize {
     sys_exit(code)
+}
+
+pub fn get_task_info(task_info: &mut TaskInfo) -> isize {
+    sys_get_task_info(task_info)
+}
+
+#[no_mangle]
+pub fn debug_task_info() {
+    let mut task_info = TaskInfo::default();
+    println!("task info addr: {:p}", &task_info);
+    get_task_info(&mut task_info);
+    let name = &task_info.app_name[0..task_info.app_name_len];
+    println!(
+        "Task idx: {}, Task Name len: {} Task Name: {}",
+        task_info.index,
+        task_info.app_name_len,
+        core::str::from_utf8(name).unwrap()
+    );
 }
 
 #[no_mangle]

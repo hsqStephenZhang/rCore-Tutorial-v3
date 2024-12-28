@@ -8,6 +8,8 @@ const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
 pub const APP_BASE_ADDRESS: usize = 0x80400000;
 pub const APP_SIZE_LIMIT: usize = 0x20000;
+// length of name of app(including '\0')
+pub const APP_NAME_MAX_LEN: usize = 16;
 
 #[repr(align(4096))]
 struct KernelStack {
@@ -51,8 +53,8 @@ lazy_static! {
         UPUnsafeCell::new({
             extern "C" {
                 fn _num_app();
+                fn _app_names();
             }
-
             let num_app_ptr = _num_app as usize as *const usize;
             let num_app = num_app_ptr.read_volatile();
             let mut app_start = [0; MAX_APP_NUM + 1];
@@ -60,10 +62,27 @@ lazy_static! {
             let app_start_raw = core::slice::from_raw_parts(num_app_ptr.add(1), num_app + 1);
             app_start[0..=num_app].copy_from_slice(app_start_raw);
 
+            let mut app_names = [ ([0; 16], 0); MAX_APP_NUM];
+
+            // read app names
+            let mut current = _app_names as *const u8;
+            for i in 0..num_app {
+                let mut len = 0;
+                while *current.add(len) != 0 {
+                    len += 1;
+                }
+                let name = core::slice::from_raw_parts(current, len);
+                assert!( name.len() < 16);
+                app_names[i].0[0..len].copy_from_slice(name);
+                app_names[i].1 = len;
+                current = current.add(len + 1);
+            }
+
             AppManager {
                 num_app,
-                current_app: 0,
-                app_start: app_start,
+                next_app: 0,
+                app_start,
+                app_names
             }
         })
     };
@@ -71,14 +90,17 @@ lazy_static! {
 
 pub struct AppManager {
     num_app: usize,
-    current_app: usize,
+    next_app: usize,
     app_start: [usize; MAX_APP_NUM + 1],
+    app_names: [([u8; 16], usize); MAX_APP_NUM],
 }
 
 impl AppManager {
     // single app layout
     // 8 byte start address + 8 byte end adress + actual binary data
-    pub unsafe fn load_app(&self, idx: usize) {
+    // always load the next app and move current_app to the next unloaded app
+    pub unsafe fn load_next_app(&mut self) {
+        let idx = self.next_app;
         if idx >= self.num_app {
             println!("all app has been loaded, shutdown");
             shutdown(false);
@@ -97,6 +119,9 @@ impl AppManager {
         let app_dst = core::slice::from_raw_parts_mut(APP_BASE_ADDRESS as *mut u8, app_src.len());
         app_dst.copy_from_slice(app_src);
 
+        // 4. move cursor
+        self.next_app += 1;
+
         asm!("fence.i");
     }
 
@@ -111,13 +136,14 @@ impl AppManager {
         }
     }
 
-    fn get_current_app(&self) -> usize {
-        self.current_app
+    pub fn get_current_app(&self) -> usize {
+        self.next_app - 1
     }
 
-    // move to next app (without loop)
-    fn move_to_next_app(&mut self) {
-        self.current_app += 1;
+    pub fn get_run_app_name(&self) -> &[u8] {
+        let idx = self.get_current_app();
+        let name_len = self.app_names[idx].1;
+        &self.app_names[idx].0[0..name_len]
     }
 }
 
@@ -136,11 +162,9 @@ pub fn user_stack_top() -> usize {
 /// load next app and move the cursor to the app after it,
 pub fn run_next_app() -> ! {
     let mut app_manager = APP_MANAGER.borrow_mut();
-    let current_app = app_manager.get_current_app();
     unsafe {
-        app_manager.load_app(current_app);
+        app_manager.load_next_app();
     }
-    app_manager.move_to_next_app();
     drop(app_manager);
 
     extern "C" {

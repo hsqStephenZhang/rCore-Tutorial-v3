@@ -11,6 +11,7 @@ const MOD: u32 = 10007;
 
 #[no_mangle]
 fn main() -> i32 {
+    user_lib::debug_task_info();
     let mut pow = [0u32; SIZE];
     let mut index: usize = 0;
     pow[index] = 1;
