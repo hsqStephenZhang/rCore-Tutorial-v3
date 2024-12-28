@@ -15,8 +15,8 @@ pub fn syscall(id: usize, args: [usize; 3]) -> isize {
     ret
 }
 
-const SYSCALL_EXIT: usize = 93;
-const SYSCALL_WRITE: usize = 64;
+pub const SYSCALL_EXIT: usize = 93;
+pub const SYSCALL_WRITE: usize = 64;
 
 pub fn sys_exit(code: i32) -> isize {
     syscall(SYSCALL_EXIT, [code as usize, 0, 0])

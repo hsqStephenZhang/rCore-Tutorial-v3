@@ -10,6 +10,8 @@ mod syscall;
 
 use syscall::*;
 
+pub const STDOUT: usize = 1;
+
 pub fn write(fd: usize, buffer: &[u8]) -> isize {
     sys_write(fd, buffer)
 }

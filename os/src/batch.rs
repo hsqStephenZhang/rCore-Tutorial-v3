@@ -6,8 +6,8 @@ use lazy_static::lazy_static;
 const USER_STACK_SIZE: usize = 4096 * 2;
 const KERNEL_STACK_SIZE: usize = 4096 * 2;
 const MAX_APP_NUM: usize = 16;
-const APP_BASE_ADDRESS: usize = 0x80400000;
-const APP_SIZE_LIMIT: usize = 0x20000;
+pub const APP_BASE_ADDRESS: usize = 0x80400000;
+pub const APP_SIZE_LIMIT: usize = 0x20000;
 
 #[repr(align(4096))]
 struct KernelStack {
@@ -129,6 +129,10 @@ pub fn print_app_info() {
     APP_MANAGER.borrow_mut().print_app_info();
 }
 
+pub fn user_stack_top() -> usize {
+    USER_STACK.top()
+}
+
 /// load next app and move the cursor to the app after it,
 pub fn run_next_app() -> ! {
     let mut app_manager = APP_MANAGER.borrow_mut();
@@ -150,4 +154,8 @@ pub fn run_next_app() -> ! {
     }
 
     panic!("")
+}
+
+pub fn stack_info() -> (usize, usize) {
+    (KERNEL_STACK.top(), USER_STACK.top())
 }

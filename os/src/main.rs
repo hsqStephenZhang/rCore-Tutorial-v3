@@ -13,9 +13,8 @@
 #![no_main]
 #![feature(panic_info_message)]
 
+use batch::{run_next_app, stack_info};
 use core::arch::global_asm;
-use batch::run_next_app;
-use log::*;
 
 #[macro_use]
 mod console;
@@ -23,9 +22,9 @@ mod batch;
 mod lang_items;
 mod logging;
 mod sbi;
+pub mod sync;
 pub mod syscall;
 pub mod trap;
-pub mod sync;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
@@ -42,6 +41,7 @@ pub fn clear_bss() {
 /// the rust entry-point of os
 #[no_mangle]
 pub fn rust_main() -> ! {
+    #[allow(dead_code)]
     extern "C" {
         fn stext(); // begin addr of text segment
         fn etext(); // end addr of text segment
@@ -57,29 +57,17 @@ pub fn rust_main() -> ! {
     clear_bss();
     logging::init();
     println!("[kernel] Hello, world!");
-    trace!(
-        "[kernel] .text [{:#x}, {:#x})",
-        stext as usize,
-        etext as usize
+    let (kernel_stack_top, user_stack_top) = stack_info();
+    println!(
+        "[kernel] kernel stack addr: {:#x}, user stack addr: {:#x}",
+        kernel_stack_top, user_stack_top
     );
-    debug!(
-        "[kernel] .rodata [{:#x}, {:#x})",
-        srodata as usize, erodata as usize
-    );
-    info!(
-        "[kernel] .data [{:#x}, {:#x})",
-        sdata as usize, edata as usize
-    );
-    warn!(
-        "[kernel] boot_stack top=bottom={:#x}, lower_bound={:#x}",
-        boot_stack_top as usize, boot_stack_lower_bound as usize
-    );
-    error!("[kernel] .bss [{:#x}, {:#x})", sbss as usize, ebss as usize);
     trap::init();
     batch::init();
     run_next_app();
 
     // CI autotest success: sbi::shutdown(false)
     // CI autotest failed : sbi::shutdown(true)
+    #[allow(unreachable_code)]
     sbi::shutdown(false)
 }

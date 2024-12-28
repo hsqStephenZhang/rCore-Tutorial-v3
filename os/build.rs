@@ -1,4 +1,3 @@
-use core::panic;
 use std::{
     fs::{read_dir, File},
     io::Write,

@@ -1,3 +1,6 @@
+use core::arch::asm;
+
+use log::warn;
 use riscv::register::{scause, sstatus, stval};
 
 use crate::{batch::run_next_app, syscall::syscall};
@@ -45,6 +48,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
                 "[kernel] StoreFault | StorePageFault at {:#x}, {:#x}",
                 cx.sepc, stval
             );
+            print_stack_trace();
             run_next_app();
         }
         scause::Trap::Exception(scause::Exception::IllegalInstruction) => {
@@ -52,6 +56,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
                 "[kernel] IllegalInstruction at {:#x}, bad instruction {:#x}",
                 cx.sepc, stval
             );
+            print_stack_trace();
             run_next_app();
         }
         _ => {
@@ -64,4 +69,19 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
     }
 
     cx
+}
+
+#[no_mangle]
+pub fn print_stack_trace() {
+    let mut fp: *const usize;
+    unsafe {
+        asm!("mv {}, fp", out(reg) fp);
+    }
+    warn!("stack trace:");
+    while fp != core::ptr::null() {
+        let ra = unsafe { *fp.sub(1) };
+        let next_fp = unsafe { *fp.sub(2) };
+        warn!("fp: {:#x}, ra: {:#x}", fp as usize, ra);
+        fp = next_fp as *const usize;
+    }
 }
