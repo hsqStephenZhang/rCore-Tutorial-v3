@@ -3,7 +3,11 @@ use core::arch::asm;
 use log::warn;
 use riscv::register::{scause, sstatus, stval};
 
-use crate::{syscall::syscall, task::exit_current_and_run_next};
+use crate::{
+    syscall::syscall,
+    task::{exit_current_and_run_next, suspend_current_and_run_next},
+    timer::set_next_trigger,
+};
 
 #[repr(C)]
 pub struct TrapContext {
@@ -58,6 +62,10 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             );
             print_stack_trace();
             exit_current_and_run_next();
+        }
+        scause::Trap::Interrupt(scause::Interrupt::SupervisorTimer) => {
+            set_next_trigger();
+            suspend_current_and_run_next();
         }
         _ => {
             panic!(

@@ -17,6 +17,7 @@ use core::arch::global_asm;
 
 use loader::print_stack_infos;
 use task::{run_first_task, TASK_MANAGER};
+use timer::set_next_trigger;
 
 #[macro_use]
 mod console;
@@ -64,6 +65,7 @@ pub fn rust_main() -> ! {
     println!("[kernel] Hello, world!");
     print_stack_infos(TASK_MANAGER.num_tasks());
     trap::init();
+    set_next_trigger();
     run_first_task();
 
     // CI autotest success: sbi::shutdown(false)
