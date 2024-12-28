@@ -79,7 +79,7 @@ impl AppManager {
     // single app layout
     // 8 byte start address + 8 byte end adress + actual binary data
     pub unsafe fn load_app(&self, idx: usize) {
-        if idx > self.num_app {
+        if idx >= self.num_app {
             println!("all app has been loaded, shutdown");
             shutdown(false);
         }
