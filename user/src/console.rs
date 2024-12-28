@@ -1,17 +1,18 @@
-use core::fmt::Write;
-
-const STDOUT: usize = 1;
+use super::write;
+use core::fmt::{self, Write};
 
 struct Stdout;
 
+const STDOUT: usize = 1;
+
 impl Write for Stdout {
-    fn write_str(&mut self, s: &str) -> core::fmt::Result {
-        crate::write(STDOUT, s.as_bytes());
+    fn write_str(&mut self, s: &str) -> fmt::Result {
+        write(STDOUT, s.as_bytes());
         Ok(())
     }
 }
 
-pub fn print(args: core::fmt::Arguments) {
+pub fn print(args: fmt::Arguments) {
     Stdout.write_fmt(args).unwrap();
 }
 

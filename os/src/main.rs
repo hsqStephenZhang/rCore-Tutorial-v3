@@ -13,17 +13,22 @@
 #![no_main]
 #![feature(panic_info_message)]
 
-use batch::{run_next_app, stack_info};
 use core::arch::global_asm;
+
+use loader::print_stack_infos;
+use task::{run_first_task, TASK_MANAGER};
 
 #[macro_use]
 mod console;
-mod batch;
+pub mod config;
 mod lang_items;
+mod loader;
 mod logging;
 mod sbi;
 pub mod sync;
 pub mod syscall;
+mod task;
+mod timer;
 pub mod trap;
 
 global_asm!(include_str!("entry.asm"));
@@ -57,14 +62,9 @@ pub fn rust_main() -> ! {
     clear_bss();
     logging::init();
     println!("[kernel] Hello, world!");
-    let (kernel_stack_top, user_stack_top) = stack_info();
-    println!(
-        "[kernel] kernel stack addr: {:#x}, user stack addr: {:#x}",
-        kernel_stack_top, user_stack_top
-    );
+    print_stack_infos(TASK_MANAGER.num_tasks());
     trap::init();
-    batch::init();
-    run_next_app();
+    run_first_task();
 
     // CI autotest success: sbi::shutdown(false)
     // CI autotest failed : sbi::shutdown(true)

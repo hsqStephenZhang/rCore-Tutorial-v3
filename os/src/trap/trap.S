@@ -33,7 +33,7 @@ __alltraps:
 
 __restore:
     # a0 is the return value to trap_handler
-    mv sp, a0
+    # this instruction is from ch2, should be deleted here: mv sp, a0 
     ld t2, 8*2(sp)
     ld t1, 8*33(sp)
     ld t0, 8*32(sp)
