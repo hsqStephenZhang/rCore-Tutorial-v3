@@ -7,3 +7,5 @@ pub const APP_SIZE_LIMIT: usize = 0x20000;
 pub const APP_NAME_MAX_LEN: usize = 16;
 
 pub const CLOCK_FREQ: usize = 12500000;
+
+pub const MAX_SYSCALL_NUM: usize = 256;

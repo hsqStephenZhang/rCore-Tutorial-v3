@@ -1,16 +1,19 @@
-use super::context::TaskContext;
+//! Types related to task management
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+use super::TaskContext;
+
+#[derive(Copy, Clone)]
+pub struct TaskControlBlock {
+    pub task_status: TaskStatus,
+    pub task_cx: TaskContext,
+    #[allow(dead_code)]
+    pub syscall_stat: [usize; 256],
+}
+
+#[derive(Copy, Clone, PartialEq)]
 pub enum TaskStatus {
-    #[default]
     UnInit,
     Ready,
     Running,
-    Finished,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct TaskControlBlock {
-    pub context: TaskContext,
-    pub status: TaskStatus,
+    Exited,
 }

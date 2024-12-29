@@ -1,3 +1,3 @@
 mod single_core;
 
-pub use single_core::UPUnsafeCell;
+pub use single_core::UPSafeCell;

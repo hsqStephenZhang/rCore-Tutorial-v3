@@ -1,26 +1,35 @@
-use crate::trap::TrapContext;
+//! Implementation of [`TaskContext`]
 
+/// Task Context
+#[derive(Copy, Clone)]
 #[repr(C)]
-#[derive(Debug, Default, Clone, Copy)]
 pub struct TaskContext {
-    // return address
+    /// return address ( e.g. __restore ) of __switch ASM function
     ra: usize,
-    // kernel stack address
+    /// kernel stack pointer of app
     sp: usize,
-    // callee-saved registers
+    /// callee saved registers:  s 0..11
     s: [usize; 12],
 }
 
 impl TaskContext {
-    // when a task is first created, it will start from ``
-    pub fn goto_restore_with_kernel_stack(sp: usize) -> Self {
-        extern "C" {
-            fn __restore(cx: *mut TrapContext);
+    /// init task context
+    pub fn zero_init() -> Self {
+        Self {
+            ra: 0,
+            sp: 0,
+            s: [0; 12],
         }
+    }
 
+    /// set task context {__restore ASM funciton, kernel stack, s_0..12 }
+    pub fn goto_restore(kstack_ptr: usize) -> Self {
+        extern "C" {
+            fn __restore();
+        }
         Self {
             ra: __restore as usize,
-            sp,
+            sp: kstack_ptr,
             s: [0; 12],
         }
     }

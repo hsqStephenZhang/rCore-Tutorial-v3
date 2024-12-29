@@ -37,6 +37,7 @@ impl TrapContext {
 
 #[no_mangle]
 pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
+    // TASK_MANAGER.add_user_time();
     let scause = scause::read();
     let stval = stval::read();
 
@@ -75,6 +76,7 @@ pub fn trap_handler(cx: &mut TrapContext) -> &mut TrapContext {
             );
         }
     }
+    // TASK_MANAGER.add_kernel_time();
 
     cx
 }

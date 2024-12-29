@@ -1,129 +1,174 @@
-pub mod context;
-pub mod switch;
-pub mod task;
+//! Task management implementation
+//!
+//! Everything about task management, like starting and switching tasks is
+//! implemented here.
+//!
+//! A single global instance of [`TaskManager`] called `TASK_MANAGER` controls
+//! all the tasks in the operating system.
+//!
+//! Be careful when you see `__switch` ASM function in `switch.S`. Control flow around this function
+//! might not be what you expect.
 
-use context::TaskContext;
+mod context;
+mod switch;
+
+#[allow(clippy::module_inception)]
+mod task;
+
+use crate::config::MAX_APP_NUM;
+use crate::loader::{get_num_app, init_app_cx};
+use crate::sbi::shutdown;
+use crate::sync::UPSafeCell;
+use lazy_static::*;
 use switch::__switch;
+use task::{TaskControlBlock, TaskStatus};
 
-use crate::{
-    config::MAX_APP_NUM,
-    loader::{init_app_ctx, load_apps},
-    sbi::shutdown,
-    sync::UPUnsafeCell,
-};
+pub use context::TaskContext;
 
+/// The task manager, where all the tasks are managed.
+///
+/// Functions implemented on `TaskManager` deals with all task state transitions
+/// and task context switching. For convenience, you can find wrappers around it
+/// in the module level.
+///
+/// Most of `TaskManager` are hidden behind the field `inner`, to defer
+/// borrowing checks to runtime. You can see examples on how to use `inner` in
+/// existing functions on `TaskManager`.
 pub struct TaskManager {
-    num_tasks: usize,
-    inner: UPUnsafeCell<TaskManagerInner>,
+    /// total number of tasks
+    num_app: usize,
+    /// use inner value to get mutable access
+    inner: UPSafeCell<TaskManagerInner>,
 }
 
+/// Inner of Task Manager
 pub struct TaskManagerInner {
+    /// task list
+    tasks: [TaskControlBlock; MAX_APP_NUM],
+    /// id of current `Running` task
     current_task: usize,
-    tasks: [task::TaskControlBlock; MAX_APP_NUM],
 }
 
-lazy_static::lazy_static! {
-    pub static ref TASK_MANAGER: TaskManager = unsafe {
-        let mut inner = TaskManagerInner {
-            current_task: 0,
-            tasks: [task::TaskControlBlock::default(); MAX_APP_NUM],
-        };
-        load_apps();
-        // safety: `load_apps` has been called
-        let num_app = crate::loader::get_app_num();
-        for i in 0..num_app {
-            let task = &mut inner.tasks[i];
-            task.context = TaskContext::goto_restore_with_kernel_stack(
-                init_app_ctx(i)
-            );
-            task.status = task::TaskStatus::Ready;
+lazy_static! {
+    /// Global variable: TASK_MANAGER
+    pub static ref TASK_MANAGER: TaskManager = {
+        let num_app = get_num_app();
+        let mut tasks = [TaskControlBlock {
+            task_cx: TaskContext::zero_init(),
+            task_status: TaskStatus::UnInit,
+            syscall_stat: [0; 256],
+        }; MAX_APP_NUM];
+        for (i, task) in tasks.iter_mut().enumerate() {
+            task.task_cx = TaskContext::goto_restore(init_app_cx(i));
+            task.task_status = TaskStatus::Ready;
         }
-
         TaskManager {
-            num_tasks: num_app,
-            inner: UPUnsafeCell::new(inner),
+            num_app,
+            inner: unsafe {
+                UPSafeCell::new(TaskManagerInner {
+                    tasks,
+                    current_task: 0,
+                })
+            },
         }
     };
 }
 
 impl TaskManager {
-    pub fn num_tasks(&self) -> usize {
-        self.num_tasks
-    }
-
-    pub fn current_task(&self) -> usize {
-        self.inner.borrow_mut().current_task
-    }
-
-    pub fn find_next_task(&self) -> Option<usize> {
-        let inner = self.inner.borrow_mut();
-        (inner.current_task + 1..=inner.current_task + self.num_tasks)
-            .map(|i| i % self.num_tasks)
-            .find(|i| inner.tasks[*i].status == task::TaskStatus::Ready)
-    }
-
-    pub fn run_first_task(&self) {
-        // create an empty current task context
-        let current_task_cx = TaskContext::default();
-        let current_task_cx_ptr = &current_task_cx as *const _ as *mut _;
-        let mut inner = self.inner.borrow_mut();
-        inner.tasks[0].status = task::TaskStatus::Running;
-        let next_task_cx_ptr = &inner.tasks[0].context as *const _;
+    /// Run the first task in task list.
+    ///
+    /// Generally, the first task in task list is an idle task (we call it zero process later).
+    /// But in ch3, we load apps statically, so the first task is a real app.
+    fn run_first_task(&self) -> ! {
+        let mut inner = self.inner.exclusive_access();
+        let task0 = &mut inner.tasks[0];
+        task0.task_status = TaskStatus::Running;
+        let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
+        let mut _unused = TaskContext::zero_init();
+        // before this, we should drop local variables that must be dropped manually
         unsafe {
-            __switch(current_task_cx_ptr, next_task_cx_ptr);
+            __switch(&mut _unused as *mut TaskContext, next_task_cx_ptr);
         }
-        panic!("unreachable after __switch");
+        panic!("unreachable in run_first_task!");
     }
 
+    /// Change the status of current `Running` task into `Ready`.
+    fn mark_current_suspended(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_status = TaskStatus::Ready;
+    }
+
+    /// Change the status of current `Running` task into `Exited`.
+    fn mark_current_exited(&self) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_status = TaskStatus::Exited;
+    }
+
+    /// Find next task to run and return task id.
+    ///
+    /// In this case, we only return the first `Ready` task in task list.
+    fn find_next_task(&self) -> Option<usize> {
+        let inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        (current + 1..current + self.num_app + 1)
+            .map(|id| id % self.num_app)
+            .find(|id| inner.tasks[*id].task_status == TaskStatus::Ready)
+    }
+
+    /// Switch current `Running` task to the task we have found,
+    /// or there is no `Ready` task and we can exit with all applications completed
     fn run_next_task(&self) {
-        if let Some(next_task) = self.find_next_task() {
-            let mut inner = self.inner.borrow_mut();
-            let current_task = inner.current_task;
-            let current_task_cx_ptr = &inner.tasks[current_task].context as *const _ as *mut _;
-            let next_task_cx_ptr = &inner.tasks[next_task].context as *const _;
-            inner.current_task = next_task;
+        if let Some(next) = self.find_next_task() {
+            let mut inner = self.inner.exclusive_access();
+            let current = inner.current_task;
+            inner.tasks[next].task_status = TaskStatus::Running;
+            inner.current_task = next;
+            let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
+            let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
             drop(inner);
+            // before this, we should drop local variables that must be dropped manually
             unsafe {
                 __switch(current_task_cx_ptr, next_task_cx_ptr);
             }
+            // go back to user mode
         } else {
-            println!("all app has been loaded, shutdown");
+            println!("All applications completed!");
             shutdown(false);
         }
     }
-
-    // suspend the current task and run the next
-    fn suspend_and_run_next(&self) {
-        let mut inner = self.inner.borrow_mut();
-        let current_task = inner.current_task;
-        inner.tasks[current_task].status = task::TaskStatus::Ready;
-        drop(inner);
-        self.run_next_task();
-    }
-
-    /// exit the current task and run the next
-    fn exit_and_run_next(&self) {
-        let mut inner: core::cell::RefMut<'_, TaskManagerInner> = self.inner.borrow_mut();
-        let current_task = inner.current_task;
-        inner.tasks[current_task].status = task::TaskStatus::Finished;
-        drop(inner);
-        self.run_next_task();
-    }
 }
 
+/// run first task
 pub fn run_first_task() {
     TASK_MANAGER.run_first_task();
 }
 
-pub fn exit_current_and_run_next() {
-    TASK_MANAGER.exit_and_run_next();
+/// rust next task
+fn run_next_task() {
+    TASK_MANAGER.run_next_task();
 }
 
+/// suspend current task
+fn mark_current_suspended() {
+    TASK_MANAGER.mark_current_suspended();
+}
+
+/// exit current task
+fn mark_current_exited() {
+    TASK_MANAGER.mark_current_exited();
+}
+
+/// suspend current task, then run next task
 pub fn suspend_current_and_run_next() {
-    TASK_MANAGER.suspend_and_run_next();
+    mark_current_suspended();
+    run_next_task();
 }
 
-pub fn current_task() -> usize {
-    TASK_MANAGER.current_task()
+/// exit current task,  then run next task
+pub fn exit_current_and_run_next() {
+    mark_current_exited();
+    run_next_task();
 }
