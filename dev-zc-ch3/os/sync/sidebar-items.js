@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":["single_core"],"struct":["UPSafeCell"]};
