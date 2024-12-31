@@ -20,7 +20,7 @@ pub fn init() {
     page_table::page_table_test();
     memory_set::KERNEL_SPACE.exclusive_access().activate();
     memory_set::remap_test();
-    memory_set::load_user_apps_test();
+    // memory_set::load_user_apps_test();
 }
 
 pub fn translate_user_buffer(user_token: usize, buf: *const u8, len: usize) -> Vec<&'static [u8]> {

@@ -4,13 +4,13 @@
 
 #[macro_use]
 pub mod console;
+pub mod config;
 mod lang_items;
 mod syscall;
 
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
-    console::puts("hello\n");
     clear_bss();
     exit(main());
     panic!("unreachable after sys_exit!");
@@ -45,4 +45,16 @@ pub fn yield_() -> isize {
 }
 pub fn get_time() -> isize {
     sys_get_time()
+}
+
+pub fn sbrk(size: i32) -> isize {
+    sys_sbrk(size)
+}
+
+pub fn mmap(start: usize, len: usize, prot: usize) -> isize {
+    sys_mmap(start, len, prot)
+}
+
+pub fn munmap(start: usize, len: usize) -> isize {
+    sys_munmap(start, len)
 }

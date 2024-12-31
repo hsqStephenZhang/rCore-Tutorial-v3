@@ -74,6 +74,10 @@ pub fn trap_handler() -> ! {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
             exit_current_and_run_next();
         }
+        Trap::Exception(Exception::LoadPageFault) | Trap::Exception(Exception::LoadFault) => {
+            println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
+            exit_current_and_run_next();
+        }
         Trap::Exception(Exception::IllegalInstruction) => {
             println!("[kernel] IllegalInstruction in application, kernel killed it.");
             exit_current_and_run_next();

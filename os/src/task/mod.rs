@@ -16,6 +16,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::memory_set::MapPermission;
 use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
@@ -198,4 +199,35 @@ pub fn current_user_token() -> usize {
 
 pub fn current_trap_cx() -> &'static mut TrapContext {
     TASK_MANAGER.get_current_trap_cx()
+}
+
+pub fn sbrk(new_brk_size: i32) -> Option<usize> {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let task = &mut inner.tasks[current];
+    task.sbrk(new_brk_size)
+}
+
+pub fn mmap(start: usize, len: usize, protection: usize) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let task: &mut TaskControlBlock = &mut inner.tasks[current];
+    let mut permission = MapPermission::U;
+    if protection & 0b1 != 0 {
+        permission |= MapPermission::R;
+    }
+    if protection & 0b10 != 0 {
+        permission |= MapPermission::W;
+    }
+    if protection & 0b100 != 0 {
+        permission |= MapPermission::X;
+    }
+    task.mmap(start, len, permission)
+}
+
+pub fn munmap(start: usize, len: usize) -> isize {
+    let mut inner = TASK_MANAGER.inner.exclusive_access();
+    let current = inner.current_task;
+    let task = &mut inner.tasks[current];
+    task.munmap(start, len)
 }

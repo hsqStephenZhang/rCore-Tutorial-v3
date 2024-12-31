@@ -12,7 +12,7 @@ use crate::{
 use super::page_table::PageTable;
 use alloc::{collections::btree_map::BTreeMap, sync::Arc, vec::Vec};
 use bitflags::bitflags;
-use log::{debug, info};
+use log::{debug, info, trace};
 use page_table::{PTEFlags, PageTableEntry};
 use riscv::register::satp;
 
@@ -67,6 +67,21 @@ impl MapArea {
         for vpn in self.vpn_range.into_iter() {
             self.unmap_one(page_table, vpn);
         }
+    }
+
+    #[allow(unused)]
+    pub fn shrink_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
+        for vpn in VPNRange::new(new_end, self.vpn_range.get_end()) {
+            self.unmap_one(page_table, vpn)
+        }
+        self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
+    }
+    #[allow(unused)]
+    pub fn append_to(&mut self, page_table: &mut PageTable, new_end: VirtPageNum) {
+        for vpn in VPNRange::new(self.vpn_range.get_end(), new_end) {
+            self.map_one(page_table, vpn)
+        }
+        self.vpn_range = VPNRange::new(self.vpn_range.get_start(), new_end);
     }
 
     // SAFETY: call after map(alloc physical frames to store the data) && is Framed
@@ -155,6 +170,10 @@ impl MemorySet {
         }
     }
 
+    pub fn get_page_table(&mut self) -> &mut PageTable {
+        &mut self.page_table
+    }
+
     fn push(&mut self, mut area: MapArea, data: Option<&[u8]>) {
         area.map(&mut self.page_table);
         if let Some(data) = data {
@@ -177,6 +196,43 @@ impl MemorySet {
             MapArea::new(start_va, end_va, MapType::Framed, permission),
             None,
         );
+    }
+
+    #[allow(unused)]
+    pub fn shrink_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
+        if let Some(area) = self
+            .areas
+            .iter_mut()
+            .find(|area| area.vpn_range.get_start() == start.floor())
+        {
+            trace!(
+                "shrink to, origin end: {:?}, new end: {:?}",
+                area.vpn_range.get_end(),
+                new_end.ceil()
+            );
+            area.shrink_to(&mut self.page_table, new_end.ceil());
+            true
+        } else {
+            false
+        }
+    }
+    #[allow(unused)]
+    pub fn append_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
+        if let Some(area) = self
+            .areas
+            .iter_mut()
+            .find(|area| area.vpn_range.get_start() == start.floor())
+        {
+            trace!(
+                "append to, origin end: {:?}, new end: {:?}",
+                area.vpn_range.get_end(),
+                new_end.ceil()
+            );
+            area.append_to(&mut self.page_table, new_end.ceil());
+            true
+        } else {
+            false
+        }
     }
 
     pub fn map_trampoline(&mut self) {
@@ -324,6 +380,17 @@ impl MemorySet {
         memory_set.push(
             MapArea::new(
                 user_stack_bottom.into(),
+                user_stack_top.into(),
+                MapType::Framed,
+                MapPermission::R | MapPermission::W | MapPermission::U,
+            ),
+            None,
+        );
+
+        debug!("map heap : [{:x}, {:x})", user_stack_top, user_stack_top);
+        memory_set.push(
+            MapArea::new(
+                user_stack_top.into(),
                 user_stack_top.into(),
                 MapType::Framed,
                 MapPermission::R | MapPermission::W | MapPermission::U,

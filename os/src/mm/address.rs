@@ -265,6 +265,10 @@ impl VPNRange{
     pub fn from_addr_range(start: VirtAddr, end: VirtAddr) -> Self {
         VPNRange::new(start.floor(), end.ceil())
     }
+
+    pub fn len(&self) -> usize {
+        self.r.0 - self.l.0
+    }
 }
 
 pub fn addr_test() {

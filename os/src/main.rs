@@ -62,8 +62,8 @@ fn clear_bss() {
 pub fn rust_main() -> ! {
     clear_bss();
     println!("[kernel] Hello, world!");
-    trap::init();
     logging::init();
+    trap::init();
     mm::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
