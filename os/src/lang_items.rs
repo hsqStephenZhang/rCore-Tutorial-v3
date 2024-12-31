@@ -23,13 +23,36 @@ fn panic(info: &PanicInfo) -> ! {
     shutdown(true)
 }
 
+mod stack_trace {
+    use log::warn;
+
+    pub const MAX_FRAME_DEPTH: usize = 32;
+
+    pub struct StackTrace {
+        _inner: (),
+    }
+
+    impl StackTrace {
+        pub fn new() -> Self {
+            warn!("stack trace:");
+            Self { _inner: () }
+        }
+    }
+
+    impl Drop for StackTrace {
+        fn drop(&mut self) {
+            warn!("stack trace done");
+        }
+    }
+}
+
 #[no_mangle]
 pub fn print_stack_trace() {
     let mut fp: *const usize;
     unsafe {
         core::arch::asm!("mv {}, fp", out(reg) fp);
     }
-    
+
     fn is_valid(fp: *const usize) -> bool {
         if fp == core::ptr::null() {
             return false;
@@ -45,12 +68,14 @@ pub fn print_stack_trace() {
         }
         true
     }
-    warn!("stack trace:");
-    while is_valid(fp) {
+    let _stack_trace = stack_trace::StackTrace::new();
+
+    let mut depth = 0;
+    while is_valid(fp) && depth < stack_trace::MAX_FRAME_DEPTH {
         let ra = unsafe { *fp.sub(1) };
         let next_fp = unsafe { *fp.sub(2) };
         warn!("fp: {:#x}, ra: {:#x}", fp as usize, ra);
         fp = next_fp as *const usize;
+        depth += 1;
     }
-    warn!("stack trace done");
 }
