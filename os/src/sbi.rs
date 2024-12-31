@@ -12,6 +12,8 @@ pub fn set_timer(timer: usize) {
 }
 
 /// use sbi call to shutdown the kernel
+#[inline(never)]
+#[no_mangle]
 pub fn shutdown(failure: bool) -> ! {
     use sbi_rt::{system_reset, NoReason, Shutdown, SystemFailure};
     if !failure {

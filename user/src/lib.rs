@@ -10,6 +10,7 @@ mod syscall;
 #[no_mangle]
 #[link_section = ".text.entry"]
 pub extern "C" fn _start() -> ! {
+    console::puts("hello\n");
     clear_bss();
     exit(main());
     panic!("unreachable after sys_exit!");

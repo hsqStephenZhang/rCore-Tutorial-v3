@@ -16,6 +16,16 @@ pub fn print(args: fmt::Arguments) {
     Stdout.write_fmt(args).unwrap();
 }
 
+#[no_mangle]
+pub fn put_char(c: char) {
+    Stdout.write_char(c).unwrap();
+}
+
+#[no_mangle]
+pub fn puts(s: &str) {
+    Stdout.write_str(s).unwrap();
+}
+
 #[macro_export]
 macro_rules! print {
     ($fmt: literal $(, $($arg: tt)+)?) => {

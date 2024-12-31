@@ -15,11 +15,13 @@
 //! We then call [`task::run_first_task()`] and for the first time go to
 //! userspace.
 
-#![deny(missing_docs)]
-#![deny(warnings)]
 #![no_std]
 #![no_main]
 #![feature(panic_info_message)]
+#![feature(alloc_error_handler)]
+
+#[macro_use]
+extern crate alloc;
 
 use core::arch::global_asm;
 
@@ -31,6 +33,8 @@ mod console;
 mod config;
 mod lang_items;
 mod loader;
+mod logging;
+pub mod mm;
 mod sbi;
 mod sync;
 pub mod syscall;
@@ -59,9 +63,11 @@ pub fn rust_main() -> ! {
     clear_bss();
     println!("[kernel] Hello, world!");
     trap::init();
-    loader::load_apps();
+    logging::init();
+    mm::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
+    task::print_task_infos();
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

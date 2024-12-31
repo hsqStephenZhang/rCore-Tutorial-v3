@@ -15,10 +15,11 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::config::MAX_APP_NUM;
-use crate::loader::{get_num_app, init_app_cx};
+use crate::loader::{get_app_data, get_num_app};
 use crate::sbi::shutdown;
 use crate::sync::UPSafeCell;
+use crate::trap::TrapContext;
+use alloc::vec::Vec;
 use lazy_static::*;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus};
@@ -44,7 +45,7 @@ pub struct TaskManager {
 /// Inner of Task Manager
 pub struct TaskManagerInner {
     /// task list
-    tasks: [TaskControlBlock; MAX_APP_NUM],
+    tasks: Vec<TaskControlBlock>,
     /// id of current `Running` task
     current_task: usize,
 }
@@ -53,13 +54,9 @@ lazy_static! {
     /// Global variable: TASK_MANAGER
     pub static ref TASK_MANAGER: TaskManager = {
         let num_app = get_num_app();
-        let mut tasks = [TaskControlBlock {
-            task_cx: TaskContext::zero_init(),
-            task_status: TaskStatus::UnInit,
-        }; MAX_APP_NUM];
-        for (i, task) in tasks.iter_mut().enumerate() {
-            task.task_cx = TaskContext::goto_restore(init_app_cx(i));
-            task.task_status = TaskStatus::Ready;
+        let mut tasks = vec![];
+        for i in 0..num_app {
+            tasks.push(TaskControlBlock::new(i,get_app_data(i)));
         }
         TaskManager {
             num_app,
@@ -138,6 +135,29 @@ impl TaskManager {
             shutdown(false);
         }
     }
+
+    /// Get current task's token
+    pub fn get_current_token(&self) -> usize {
+        let inner = self.inner.exclusive_access();
+        inner.tasks[inner.current_task].memory_set.token()
+    }
+
+    /// Get current task's trap context
+    pub fn get_current_trap_cx(&self) -> &'static mut TrapContext {
+        let inner = self.inner.exclusive_access();
+        let trap_cx_ppn = inner.tasks[inner.current_task].trap_cx_ppn;
+        unsafe { trap_cx_ppn.get_mut::<TrapContext>() }
+    }
+}
+
+pub fn print_task_infos() {
+    let inner = TASK_MANAGER.inner.exclusive_access();
+    for (i, task) in inner.tasks.iter().enumerate() {
+        println!(
+            "Task {} status: {:?}, cx: {:?}, size:{:?}",
+            i, task.task_status, task.memory_set, task.base_size
+        );
+    }
 }
 
 /// run first task
@@ -170,4 +190,12 @@ pub fn suspend_current_and_run_next() {
 pub fn exit_current_and_run_next() {
     mark_current_exited();
     run_next_task();
+}
+
+pub fn current_user_token() -> usize {
+    TASK_MANAGER.get_current_token()
+}
+
+pub fn current_trap_cx() -> &'static mut TrapContext {
+    TASK_MANAGER.get_current_trap_cx()
 }
