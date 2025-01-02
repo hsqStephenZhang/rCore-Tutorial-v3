@@ -31,6 +31,7 @@ mod board;
 #[macro_use]
 mod console;
 mod config;
+mod initcall;
 mod lang_items;
 mod loader;
 mod logging;
@@ -68,6 +69,9 @@ pub fn rust_main() -> ! {
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     task::print_task_infos();
+    unsafe {
+        initcall::do_initcalls();
+    }
     task::run_first_task();
     panic!("Unreachable in rust_main!");
 }

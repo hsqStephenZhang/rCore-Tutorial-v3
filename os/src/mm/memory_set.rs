@@ -263,6 +263,11 @@ extern "C" {
     fn ebss();
     fn ekernel();
     fn strampoline();
+
+    fn sinittext();
+    fn einittext();
+    fn sinitdata();
+    fn einitdata();
 }
 
 impl MemorySet {
@@ -276,6 +281,13 @@ impl MemorySet {
         info!(
             ".bss: [{:x}, {:x})",
             sbss_with_stack as usize, ebss as usize
+        );
+        info!(".init.text: [{:x}, {:x})", sinittext as usize, einittext as usize);
+        info!(".init.data: [{:x}, {:x})", sinitdata as usize, einitdata as usize);
+        info!(
+            "kernel: [{:x}, {:x})",
+            ekernel as usize,
+            MEMORY_END as usize
         );
 
         memory_set.push(
@@ -321,6 +333,26 @@ impl MemorySet {
                 MEMORY_END.into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W,
+            ),
+            None,
+        );
+
+        memory_set.push(
+            MapArea::new(
+                (sinitdata as usize).into(),
+                (einitdata as usize).into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::W | MapPermission::X,
+            ),
+            None,
+        );
+
+        memory_set.push(
+            MapArea::new(
+                (sinittext as usize).into(),
+                (einittext as usize).into(),
+                MapType::Identical,
+                MapPermission::R | MapPermission::X,
             ),
             None,
         );

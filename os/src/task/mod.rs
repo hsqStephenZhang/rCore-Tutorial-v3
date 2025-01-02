@@ -22,6 +22,7 @@ use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
 use lazy_static::*;
+use log::debug;
 use switch::__switch;
 use task::{TaskControlBlock, TaskStatus};
 
@@ -154,7 +155,7 @@ impl TaskManager {
 pub fn print_task_infos() {
     let inner = TASK_MANAGER.inner.exclusive_access();
     for (i, task) in inner.tasks.iter().enumerate() {
-        println!(
+        debug!(
             "Task {} status: {:?}, cx: {:?}, size:{:?}",
             i, task.task_status, task.memory_set, task.base_size
         );

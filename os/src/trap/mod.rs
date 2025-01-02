@@ -49,6 +49,9 @@ pub fn set_user_trap_handler() {
 
 #[no_mangle]
 pub fn panic_kernel() -> ! {
+    let scause = scause::read(); // get trap cause
+    let stval = stval::read(); // get extra value
+    println!("[kernel] TRAP: {:?}, stval = {:#x}", scause.cause(), stval);
     panic!("[kernel] UNEXPECTED TRAP FROM KERNEL!");
 }
 
