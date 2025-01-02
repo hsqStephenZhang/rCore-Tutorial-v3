@@ -74,7 +74,8 @@ pub fn print_stack_trace() {
     while is_valid(fp) && depth < stack_trace::MAX_FRAME_DEPTH {
         let ra = unsafe { *fp.sub(1) };
         let next_fp = unsafe { *fp.sub(2) };
-        warn!("fp: {:#x}, ra: {:#x}", fp as usize, ra);
+        let ksym = crate::kallsyms::lookup(ra).unwrap_or("<unknown>");
+        warn!("fp: {:#x}, ra: {:#x}, func: {}", fp as usize, ra, ksym);
         fp = next_fp as *const usize;
         depth += 1;
     }

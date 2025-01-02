@@ -66,6 +66,22 @@ SECTIONS
 
     . = ALIGN(4K);
     edata = .;
+
+    . = ALIGN(4K);
+    s_ksymtab_strings = .;
+    __ksymtab_strings : {
+        KEEP(*(__ksymtab_strings))
+    }
+    e_ksymtab_strings = .;
+
+    . = ALIGN(4K);
+    s_ksymtab = .;
+    __ksymtab : {
+        KEEP(*(___ksymtab))
+    }
+    e_ksymtab = .;
+
+    . = ALIGN(4K);
     sbss_with_stack = .;
     .bss : {
         *(.bss.stack)

@@ -20,6 +20,7 @@ pub unsafe fn do_initcalls() {
     info!("do_initcalls, num: {}", num_initcalls);
     for initcall in initcalls {
         (*initcall)();
+        panic!("do_initcalls");
     }
     info!("do_initcalls done");
 }

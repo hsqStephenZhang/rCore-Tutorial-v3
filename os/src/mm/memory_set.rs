@@ -268,6 +268,11 @@ extern "C" {
     fn einittext();
     fn sinitdata();
     fn einitdata();
+
+    fn s_ksymtab();
+    fn e_ksymtab();
+    fn s_ksymtab_strings();
+    fn e_ksymtab_strings();
 }
 
 impl MemorySet {
@@ -284,6 +289,14 @@ impl MemorySet {
         );
         info!(".init.text: [{:x}, {:x})", sinittext as usize, einittext as usize);
         info!(".init.data: [{:x}, {:x})", sinitdata as usize, einitdata as usize);
+        info!(
+            ".ksymtab: [{:x}, {:x})",
+            s_ksymtab as usize, e_ksymtab as usize
+        );
+        info!(
+            ".ksymtab_strings: [{:x}, {:x})",
+            s_ksymtab_strings as usize, e_ksymtab_strings as usize
+        );
         info!(
             "kernel: [{:x}, {:x})",
             ekernel as usize,
@@ -343,6 +356,26 @@ impl MemorySet {
                 (einitdata as usize).into(),
                 MapType::Identical,
                 MapPermission::R | MapPermission::W | MapPermission::X,
+            ),
+            None,
+        );
+
+        memory_set.push(
+            MapArea::new(
+                (s_ksymtab as usize).into(),
+                (e_ksymtab as usize).into(),
+                MapType::Identical,
+                MapPermission::R,
+            ),
+            None,
+        );
+
+        memory_set.push(
+            MapArea::new(
+                (s_ksymtab_strings as usize).into(),
+                (e_ksymtab_strings as usize).into(),
+                MapType::Identical,
+                MapPermission::R,
             ),
             None,
         );

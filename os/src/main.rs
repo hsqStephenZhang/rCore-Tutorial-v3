@@ -42,9 +42,11 @@ pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
+mod kallsyms;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
+global_asm!(include_str!("export_symbol.S"));
 
 /// clear BSS segment
 fn clear_bss() {
@@ -69,6 +71,7 @@ pub fn rust_main() -> ! {
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
     task::print_task_infos();
+    kallsyms::print_all_symbols();
     unsafe {
         initcall::do_initcalls();
     }
