@@ -1,3 +1,12 @@
+///! kernel will write all exported symbols into export_symbol.S by build.rs(the 
+/// symbols list to be included is hard-coded in `build.rs` currently, it can be
+/// improved by analyzing the elf file after the first stage of compiling, you may
+/// refer to linux's approach in `scripts/kallsyms.c`)
+/// then we can map this section into kernel's memory space, and read all the content
+/// load it into a BTreeMap, and we can lookup the symbol by address
+/// (then we may deallocate the memory of `__ksymtab_strings` and `___ksymtab` sections)
+/// 
+
 use alloc::{borrow::ToOwned, string::String};
 
 extern "C" {
@@ -11,7 +20,9 @@ lazy_static::lazy_static! {
 
 #[repr(C)]
 struct KSym {
+    // actual symbol address of kernel
     addr: u32,
+    // the address of the symbols's name in `__ksymtab_strings` section
     name: u32,
 }
 
