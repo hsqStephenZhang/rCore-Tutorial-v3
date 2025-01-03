@@ -25,38 +25,26 @@ pub unsafe fn do_initcalls() {
 }
 
 // Example usage, we may
-#[link_section = ".init.text"]
-#[no_mangle]
+#[init_section(level = 1)]
 unsafe fn example_init() -> i32 {
     println!("Hello from example0_init!");
     0
 }
 
-#[link_section = ".initcall.init"]
-#[no_mangle]
-#[used]
-static EXAMPLE_INITCALL: crate::initcall::InitCallFn = example_init;
-
-#[link_section = ".init.text"]
-#[no_mangle]
+#[init_section(level = 1)]
 unsafe fn example1_init() -> i32 {
     println!("Hello from example1_init!");
     0
 }
 
-#[link_section = ".initcall1.init"]
-#[no_mangle]
-#[used]
-static EXAMPLE1_INITCALL: crate::initcall::InitCallFn = example_init;
-
-#[link_section = ".init.text"]
-#[no_mangle]
+#[init_section(level = 2)]
 unsafe fn example2_init() -> i32 {
     println!("Hello from example2_init!");
     0
 }
 
-#[link_section = ".initcall2.init"]
-#[no_mangle]
-#[used]
-static EXAMPLE2_INITCALL: crate::initcall::InitCallFn = example2_init;
+#[init_section(level = 3)]
+unsafe fn example3_init() -> i32 {
+    println!("Hello from example3_init!");
+    0
+}

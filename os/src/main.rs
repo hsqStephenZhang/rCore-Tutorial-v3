@@ -22,6 +22,8 @@
 
 #[macro_use]
 extern crate alloc;
+#[macro_use]
+extern crate rcore_macro;
 
 use core::arch::global_asm;
 
@@ -32,6 +34,7 @@ mod board;
 mod console;
 mod config;
 mod initcall;
+mod kallsyms;
 mod lang_items;
 mod loader;
 mod logging;
@@ -42,7 +45,6 @@ pub mod syscall;
 pub mod task;
 mod timer;
 pub mod trap;
-mod kallsyms;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
