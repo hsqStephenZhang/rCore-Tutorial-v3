@@ -5,7 +5,6 @@ fn main() {
     println!("cargo:rerun-if-changed=../user/src/");
     println!("cargo:rerun-if-changed={}", TARGET_PATH);
     insert_app_data().unwrap();
-    mock_export_symbols(&["trap_handler", "rust_main", "do_initcalls"]).unwrap();
 }
 
 static TARGET_PATH: &str = "../user/target/riscv64gc-unknown-none-elf/release/";
@@ -53,34 +52,5 @@ app_{0}_end:"#,
             idx, app, TARGET_PATH
         )?;
     }
-    Ok(())
-}
-
-// mock certain symbols
-fn mock_export_symbols(symbols: &[&str]) -> Result<()> {
-    let mut f = File::create("src/export_symbol.S").unwrap();
-
-    let mut write_one_symbol = |symbol: &str| -> Result<()> {
-        writeln!(
-            f,
-            r#"
-        .section "__ksymtab_strings","aMS",%progbits,1
-        __kstrtab_{0}:
-            .asciz "{0}"
-        .previous
-        .section "___ksymtab", "a"
-        .balign 8
-        __ksymtab_{0}:
-            .long {0}
-            .long __kstrtab_{0}
-        .previous
-        "#,
-            symbol
-        )
-    };
-    for symbol in symbols.iter() {
-        write_one_symbol(symbol)?;
-    }
-
     Ok(())
 }
