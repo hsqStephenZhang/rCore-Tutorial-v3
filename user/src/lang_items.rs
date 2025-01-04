@@ -14,5 +14,4 @@ fn panic_handler(panic_info: &core::panic::PanicInfo) -> ! {
         println!("Panicked: {}", err);
     }
     exit(-1);
-    loop {}
 }

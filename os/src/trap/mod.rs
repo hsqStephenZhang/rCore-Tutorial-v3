@@ -54,6 +54,7 @@ pub fn panic_kernel() -> ! {
     println!("[kernel] TRAP: {:?}, stval = {:#x}", scause.cause(), stval);
     panic!("[kernel] UNEXPECTED TRAP FROM KERNEL!");
 }
+export_func_simple!(panic_kernel);
 
 fn set_kernel_trap_handler() {
     unsafe {
@@ -65,25 +66,27 @@ fn set_kernel_trap_handler() {
 /// handle an interrupt, exception, or system call from user space
 pub fn trap_handler() -> ! {
     set_kernel_trap_handler();
-    let cx = current_trap_cx();
+    let mut cx = current_trap_cx();
     let scause = scause::read(); // get trap cause
     let stval = stval::read(); // get extra value
     match scause.cause() {
         Trap::Exception(Exception::UserEnvCall) => {
             cx.sepc += 4;
-            cx.x[10] = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+            let ret = syscall(cx.x[17], [cx.x[10], cx.x[11], cx.x[12]]) as usize;
+            cx = current_trap_cx();
+            cx.x[10] = ret;
         }
         Trap::Exception(Exception::StoreFault) | Trap::Exception(Exception::StorePageFault) => {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
-            exit_current_and_run_next();
+            exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::LoadPageFault) | Trap::Exception(Exception::LoadFault) => {
             println!("[kernel] PageFault in application, bad addr = {:#x}, bad instruction = {:#x}, kernel killed it.", stval, cx.sepc);
-            exit_current_and_run_next();
+            exit_current_and_run_next(-2);
         }
         Trap::Exception(Exception::IllegalInstruction) => {
             println!("[kernel] IllegalInstruction in application, kernel killed it.");
-            exit_current_and_run_next();
+            exit_current_and_run_next(-2);
         }
         Trap::Interrupt(Interrupt::SupervisorTimer) => {
             set_next_trigger();
@@ -99,6 +102,7 @@ pub fn trap_handler() -> ! {
     }
     trap_return();
 }
+export_func_simple!(trap_handler);
 
 #[no_mangle]
 pub fn trap_return() -> ! {
@@ -124,5 +128,6 @@ pub fn trap_return() -> ! {
         );
     }
 }
+export_func_simple!(trap_return);
 
 pub use context::TrapContext;

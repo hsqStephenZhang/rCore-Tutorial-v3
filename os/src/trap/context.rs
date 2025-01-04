@@ -9,7 +9,7 @@ pub struct TrapContext {
     /// CSR sepc
     pub sepc: usize,
     kernel_satp: usize,
-    kernel_sp: usize,
+    pub kernel_sp: usize,
     trap_handler: usize,
 }
 

@@ -23,6 +23,7 @@ pub unsafe fn do_initcalls() {
     }
     info!("do_initcalls done");
 }
+export_func_simple!(do_initcalls);
 
 // Example usage, we may
 #[init_section(level = 1)]

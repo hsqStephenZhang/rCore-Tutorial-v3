@@ -1,6 +1,9 @@
 use log::debug;
 
-use crate::{config::PAGE_SIZE, task::{mmap, munmap, sbrk}};
+use crate::{
+    config::PAGE_SIZE,
+    task::{mmap_current_task, munmap_current_task, sbrk_current_task},
+};
 
 #[no_mangle]
 pub fn sys_munmap(start: usize, len: usize) -> isize {
@@ -8,7 +11,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
         return -1;
     }
 
-    munmap(start, len)
+    munmap_current_task(start, len)
 }
 
 /// * start: 需要映射的虚存起始地址，要求按页对齐
@@ -22,6 +25,7 @@ pub fn sys_munmap(start: usize, len: usize) -> isize {
 /// 物理内存不足
 #[no_mangle]
 pub fn sys_mmap(start: usize, len: usize, protection: usize) -> isize {
+    println!("sys_mmap: start = {}, len = {}, protection = {}", start, len, protection);
     if protection & !0x7 != 0 || protection & 0x7 == 0 {
         return -1;
     }
@@ -29,12 +33,12 @@ pub fn sys_mmap(start: usize, len: usize, protection: usize) -> isize {
         return -1;
     }
 
-    mmap(start, len, protection)
+    mmap_current_task(start, len, protection)
 }
 
 #[no_mangle]
 pub fn sys_sbrk(s: i32) -> isize {
-    let res = sbrk(s);
+    let res = sbrk_current_task(s);
     debug!("sys_sbrk: s = {}, res = {:?}", s, res);
     match res {
         Some(origin_brk) => origin_brk as _,

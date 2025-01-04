@@ -2,7 +2,7 @@
 OUTPUT_ARCH(riscv)
 ENTRY(_start)
 
-BASE_ADDRESS = 0x10000;
+BASE_ADDRESS = 0x0;
 
 SECTIONS
 {
@@ -22,10 +22,8 @@ SECTIONS
         *(.sdata .sdata.*)
     }
     .bss : {
-        start_bss = .;
         *(.bss .bss.*)
         *(.sbss .sbss.*)
-        end_bss = .;
     }
     /DISCARD/ : {
         *(.eh_frame)

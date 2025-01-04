@@ -97,6 +97,11 @@ impl PageTable {
         }
     }
 
+    pub fn clear(&mut self) {
+        self.frames.clear();
+        self.root_ppn = PhysPageNum(0);
+    }
+
     pub fn token(&self) -> usize {
         8usize << 60 | self.root_ppn.0
     }

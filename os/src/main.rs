@@ -22,6 +22,7 @@
 
 #[macro_use]
 extern crate alloc;
+
 #[macro_use]
 extern crate rcore_macro;
 
@@ -33,6 +34,8 @@ mod board;
 #[macro_use]
 mod console;
 mod config;
+#[macro_use]
+mod macros;
 mod initcall;
 mod kallsyms;
 mod lang_items;
@@ -48,7 +51,6 @@ pub mod trap;
 
 global_asm!(include_str!("entry.asm"));
 global_asm!(include_str!("link_app.S"));
-global_asm!(include_str!("export_symbol.S"));
 
 /// clear BSS segment
 fn clear_bss() {
@@ -72,11 +74,20 @@ pub fn rust_main() -> ! {
     mm::init();
     trap::enable_timer_interrupt();
     timer::set_next_trigger();
-    task::print_task_infos();
+    loader::print_task_names();
+    task::init();
     kallsyms::print_all_symbols();
     unsafe {
         initcall::do_initcalls();
     }
-    task::run_first_task();
+    // print current sp
+    let sp: usize;
+    unsafe {
+        core::arch::asm!("mv {}, sp", out(reg) sp);
+    }
+    task::run_tasks();
+    println!("[kernel] Current sp: {:#x}", sp);
+    // task::run_first_task();
     panic!("Unreachable in rust_main!");
 }
+export_func_simple!(rust_main);

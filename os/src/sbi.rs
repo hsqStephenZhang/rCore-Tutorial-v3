@@ -1,9 +1,31 @@
 //! SBI call wrappers
 
-/// use sbi call to putchar in console (qemu uart handler)
+use core::arch::asm;
+
+const SBI_CONSOLE_PUTCHAR: usize = 1;
+const SBI_CONSOLE_GETCHAR: usize = 2;
+
+#[inline(always)]
+fn sbi_call(which: usize, arg0: usize, arg1: usize, arg2: usize) -> usize {
+    let mut ret;
+    unsafe {
+        asm!(
+            "ecall",
+            inlateout("x10") arg0 => ret,
+            in("x11") arg1,
+            in("x12") arg2,
+            in("x17") which,
+        );
+    }
+    ret
+}
+
 pub fn console_putchar(c: usize) {
-    #[allow(deprecated)]
-    sbi_rt::legacy::console_putchar(c);
+    sbi_call(SBI_CONSOLE_PUTCHAR, c, 0, 0);
+}
+
+pub fn console_getchar() -> usize {
+    sbi_call(SBI_CONSOLE_GETCHAR, 0, 0, 0)
 }
 
 /// use sbi call to set timer

@@ -57,6 +57,15 @@ impl MapArea {
         }
     }
 
+    pub fn from_another(map_area: &MapArea) -> Self {
+        Self {
+            vpn_range: map_area.vpn_range,
+            data_frames: BTreeMap::new(),
+            map_type: map_area.map_type,
+            map_perm: map_area.map_perm,
+        }
+    }
+
     pub fn map(&mut self, page_table: &mut PageTable) {
         for vpn in self.vpn_range.into_iter() {
             self.map_one(page_table, vpn);
@@ -198,6 +207,22 @@ impl MemorySet {
         );
     }
 
+    pub fn remove_area(&mut self, start_va: VirtAddr, end_va: VirtAddr) {
+        let target_range = VPNRange::from_addr_range(start_va, end_va);
+        let start = target_range.get_start();
+        let end = target_range.get_end();
+        let (idx, target_area) = self
+            .areas
+            .iter_mut()
+            .enumerate()
+            .find(|(_, area)| {
+                area.vpn_range.get_start() == start && area.vpn_range.get_end() == end
+            })
+            .unwrap();
+        target_area.unmap(&mut self.page_table);
+        self.areas.remove(idx);
+    }
+
     #[allow(unused)]
     pub fn shrink_to(&mut self, start: VirtAddr, new_end: VirtAddr) -> bool {
         if let Some(area) = self
@@ -250,6 +275,11 @@ impl MemorySet {
     pub fn token(&self) -> usize {
         self.page_table.token()
     }
+
+    pub(crate) fn clear_pages(&mut self) {
+        self.areas.clear();
+        self.page_table.clear();
+    }
 }
 
 extern "C" {
@@ -287,8 +317,14 @@ impl MemorySet {
             ".bss: [{:x}, {:x})",
             sbss_with_stack as usize, ebss as usize
         );
-        info!(".init.text: [{:x}, {:x})", sinittext as usize, einittext as usize);
-        info!(".init.data: [{:x}, {:x})", sinitdata as usize, einitdata as usize);
+        info!(
+            ".init.text: [{:x}, {:x})",
+            sinittext as usize, einittext as usize
+        );
+        info!(
+            ".init.data: [{:x}, {:x})",
+            sinitdata as usize, einitdata as usize
+        );
         info!(
             ".ksymtab: [{:x}, {:x})",
             s_ksymtab as usize, e_ksymtab as usize
@@ -299,8 +335,7 @@ impl MemorySet {
         );
         info!(
             "kernel: [{:x}, {:x})",
-            ekernel as usize,
-            MEMORY_END as usize
+            ekernel as usize, MEMORY_END as usize
         );
 
         memory_set.push(
@@ -479,6 +514,23 @@ impl MemorySet {
             user_stack_top.into(),
             elf_header.pt2.entry_point() as _,
         )
+    }
+
+    pub fn from_another(memory_set: &MemorySet) -> Self {
+        let mut new_memory_set = Self::new_bare();
+        new_memory_set.map_trampoline();
+        for area in memory_set.areas.iter() {
+            let new_area = MapArea::from_another(area);
+            new_memory_set.push(new_area, None);
+            for vpn in area.vpn_range {
+                let src_ppn = memory_set.translate(vpn).unwrap().ppn();
+                let dst_ppn = new_memory_set.translate(vpn).unwrap().ppn();
+                let dst = unsafe { dst_ppn.get_bytes_array() };
+                let src = unsafe { src_ppn.get_bytes_array() };
+                dst.copy_from_slice(src);
+            }
+        }
+        new_memory_set
     }
 }
 
