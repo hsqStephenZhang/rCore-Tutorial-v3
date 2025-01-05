@@ -1,20 +1,23 @@
 //! Types related to task management
 
 use alloc::{
+    borrow::ToOwned,
+    string::String,
     sync::{Arc, Weak},
     vec::Vec,
 };
-use log::{debug, info};
+use log::{debug, trace};
 
 use crate::{
     config::TRAP_CONTEXT,
+    loader::get_app_data_by_name,
     mm::{
         memory_set::{MapPermission, MemorySet, KERNEL_SPACE},
         PhysPageNum, VPNRange, VirtAddr,
     },
     sync::UPSafeCell,
     task::alloc_pid,
-    trap::{self, trap_handler, TrapContext},
+    trap::{trap_handler, TrapContext},
 };
 
 use super::{current_task, pid::PidHandle, processor::PROCESSOR, KernelStack, TaskContext};
@@ -38,6 +41,10 @@ impl TaskControlBlock {
         *self.pid.as_ref()
     }
 
+    pub fn get_cmdline(&self) -> Option<String> {
+        self.inner().cmdline.clone()
+    }
+
     pub fn status(&self) -> TaskStatus {
         self.inner().task_status
     }
@@ -49,11 +56,12 @@ impl TaskControlBlock {
 
 impl Drop for TaskControlBlock {
     fn drop(&mut self) {
-        debug!("TCB drop: {:?}", self.pid);
+        trace!("TCB drop: {:?}", self.pid);
     }
 }
 
 pub struct TaskControlBlockInner {
+    pub cmdline: Option<String>,
     pub task_status: TaskStatus,
     pub task_cx: TaskContext,
     pub memory_set: MemorySet,
@@ -73,8 +81,9 @@ impl TaskControlBlockInner {
 }
 
 impl TaskControlBlock {
-    pub fn new(data: &[u8]) -> Self {
+    pub fn new(cmdline: &str) -> Self {
         let pid = alloc_pid();
+        let data = get_app_data_by_name(cmdline).unwrap();
         let (memory_set, user_stack_top, entry) = MemorySet::from_elf(data);
         let trap_cx_ppn = memory_set
             .translate(VirtAddr::from(TRAP_CONTEXT).into())
@@ -97,6 +106,7 @@ impl TaskControlBlock {
         );
 
         let inner = TaskControlBlockInner {
+            cmdline: Some(cmdline.to_owned()),
             task_status,
             task_cx,
             memory_set,
@@ -133,6 +143,7 @@ impl TaskControlBlock {
         let task_cx = TaskContext::goto_trap_return(kernel_stack_top);
 
         let inner = TaskControlBlockInner {
+            cmdline: parent_inner.cmdline.clone(),
             task_status,
             task_cx,
             memory_set,
@@ -160,7 +171,11 @@ impl TaskControlBlock {
         new_task
     }
 
-    pub fn exec(self: &Arc<Self>, data: &[u8]) {
+    pub fn exec(self: &Arc<Self>, path: &str) -> Result<(), ()> {
+        let data = match get_app_data_by_name(path) {
+            Some(data) => data,
+            None => return Err(()),
+        };
         let (memory_set, user_stack_top, entry) = MemorySet::from_elf(data);
         let trap_cx_ppn = memory_set
             .translate(VirtAddr::from(TRAP_CONTEXT).into())
@@ -179,10 +194,12 @@ impl TaskControlBlock {
             trap_handler as _,
         );
 
+        inner.cmdline = Some(path.to_owned());
         inner.base_size = data.len();
         inner.heap_bottom = 0;
         inner.heap_brk = 0;
         debug!("exec: pid = {}, entry = {:#x}", self.getpid(), entry);
+        Ok(())
     }
 
     pub fn inner(&self) -> core::cell::RefMut<'_, TaskControlBlockInner> {

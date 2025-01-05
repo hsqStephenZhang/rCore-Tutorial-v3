@@ -1,7 +1,6 @@
 //! Process management syscalls
-use log::info;
+use log::{info, trace};
 
-use crate::loader::get_app_data_by_name;
 use crate::mm::{copy_to_user, translate_user_str};
 use crate::task::{
     add_task, current_task, current_user_token, exit_current_and_run_next,
@@ -60,14 +59,14 @@ pub fn sys_task_info(_ptr: *mut TaskInfo) -> isize {
 pub fn sys_fork() -> isize {
     let task = current_task().unwrap();
     let new_task = task.fork();
-    let pid = *new_task.pid.as_ref() as isize;
+    let pid = new_task.getpid();
 
     let inner = new_task.inner();
     inner.get_trap_cx().x[10] = 0;
     drop(inner);
     add_task(new_task);
 
-    pid
+    pid as _
 }
 
 /// 功能：将当前进程的地址空间清空并加载一个特定的可执行文件，返回用户态后开始它的执行。
@@ -80,14 +79,32 @@ pub fn sys_exec(path: *const u8) -> isize {
     let current_user_token = current_user_token();
     let path = translate_user_str(current_user_token, path);
     info!("sys_exec: path = {:?}", path);
-    let app_data = get_app_data_by_name(path.as_str());
-    match app_data {
-        Some(data) => {
-            task.exec(data);
-            0
-        }
-        None => -1,
+    match task.exec(&path) {
+        Ok(_) => 0,
+        Err(()) => -1,
     }
+}
+
+#[no_mangle]
+pub fn sys_spawn(path: *const u8) -> isize {
+    let parent = current_task().unwrap();
+    let current_user_token = current_user_token();
+    let path = translate_user_str(current_user_token, path);
+
+    let child = parent.fork();
+    if let Err(_) = child.exec(&path) {
+        return -1;
+    }
+    let pid = child.getpid();
+
+    info!(
+        "sys_spawn, running child {:?}, pid: {}",
+        child.get_cmdline(),
+        pid
+    );
+    add_task(child);
+
+    pid as _
 }
 
 #[repr(C)]
@@ -118,6 +135,11 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32, opt: WaitPidOption) -> i
         .find(|p| pid == -1 || pid as usize == p.getpid())
         .is_none()
     {
+        trace!(
+            "[kernel] sys_waitpid in {:?}: no child found, children len: {}",
+            inner.cmdline.as_ref(),
+            inner.children.len()
+        );
         return -1;
         // ---- stop exclusively accessing current PCB
     }
@@ -127,20 +149,27 @@ pub fn sys_waitpid(pid: isize, exit_code_ptr: *mut i32, opt: WaitPidOption) -> i
         .iter()
         .enumerate()
         .find(|(_, t)| {
-            if t.status() == TaskStatus::Zombie && (pid == -1 || pid as usize == *t.pid.as_ref()) {
+            if t.status() == TaskStatus::Zombie && (pid == -1 || pid as usize == t.getpid()) {
                 return true;
             }
             false
         })
         .map(|(idx, t)| (idx, t.clone()));
 
-    if let Some((idx, task)) = res {
-        let pid = task.getpid();
+    if let Some((idx, child)) = res {
+        let task_pid = child.getpid();
+        let cmdline = child.get_cmdline();
+        trace!(
+            "[kernel] sys_waitpid in {:?}: found child {:?} to wait, target pid: {}, actual pid: {}",
+            inner.cmdline.as_ref(),
+            cmdline,
+            pid,task_pid
+        );
         // TODO: copy exit code
-        let exit_code = task.exit_code() as i32;
+        let exit_code = child.exit_code() as i32;
         copy_to_user(current_token, &exit_code, exit_code_ptr);
         inner.children.remove(idx);
-        pid as isize
+        task_pid as isize
     } else {
         -2
     }
@@ -159,3 +188,4 @@ export_func_simple!(sys_fork);
 export_func_simple!(sys_exec);
 export_func_simple!(sys_waitpid);
 export_func_simple!(sys_getpid);
+export_data_simple!(sys_spawn);

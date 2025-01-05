@@ -18,10 +18,10 @@ mod switch;
 #[allow(clippy::module_inception)]
 mod task;
 
-use crate::loader::get_app_data_by_name;
 use crate::sync::UPSafeCell;
 use alloc::sync::Arc;
 use lazy_static::*;
+use log::debug;
 pub use manager::{add_task, fetch_task, TASK_MANAGER};
 pub use pid::*;
 pub use processor::*;
@@ -33,8 +33,7 @@ pub use context::TaskContext;
 
 lazy_static! {
     pub static ref INIT_PROCESS: UPSafeCell<Arc<TaskControlBlock>> = {
-        let data = get_app_data_by_name("initproc").unwrap();
-        let task = TaskControlBlock::new(data);
+        let task = TaskControlBlock::new("initproc");
         unsafe { UPSafeCell::new(Arc::new(task)) }
     };
 }
@@ -53,6 +52,12 @@ pub fn suspend_current_and_run_next() {
 /// exit current task,  then run next task
 pub fn exit_current_and_run_next(exit_code: isize) {
     let cur_task = take_current().unwrap();
+    debug!(
+        "Task {:?}, pid[{}] exited with code {}",
+        cur_task.get_cmdline(),
+        cur_task.getpid(),
+        exit_code
+    );
     let mut inner = cur_task.inner();
     inner.exit_code = exit_code;
     inner.task_status = TaskStatus::Zombie;
